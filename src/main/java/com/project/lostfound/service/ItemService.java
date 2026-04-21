@@ -50,4 +50,12 @@ public class ItemService {
         }
         throw new RuntimeException("Item not found");
     }
+
+    public Item saveItem(Item item) {
+        return itemRepository.save(item);
+    }
+
+    public void deleteItem(Long id) {
+        itemRepository.deleteById(id);
+    }
 }

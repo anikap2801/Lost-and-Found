@@ -1,53 +1,62 @@
 package com.project.lostfound.controller;
 
-import com.project.lostfound.adapter.DocumentAdapter;
 import com.project.lostfound.adapter.ImageAdapter;
-import com.project.lostfound.adapter.ProofUploader;
 import com.project.lostfound.model.Claim;
 import com.project.lostfound.model.Claimant;
 import com.project.lostfound.model.Moderator;
+import com.project.lostfound.model.User;
 import com.project.lostfound.model.enums.ClaimStatus;
+import com.project.lostfound.repository.UserRepository;
 import com.project.lostfound.service.ClaimService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/claims")
+@CrossOrigin(origins = "*")
 public class ClaimController {
 
     @Autowired
     private ClaimService claimService;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @PostMapping("/submit")
-    public ResponseEntity<Claim> submitClaim(@RequestParam Long itemId,
-            @RequestParam Long claimantId,
-            @RequestParam String proofDescription,
-            @RequestParam(required = false) MultipartFile proofFile,
-            @RequestParam(defaultValue = "image") String uploadType) {
-        // In a real app, you'd fetch the claimant from the repository
-        Claimant claimant = new Claimant("Claimant Name", "claimant@example.com");
-        claimant.setId(claimantId);
+    public ResponseEntity<Claim> submitClaim(@RequestBody Claim request) {
 
-        ProofUploader uploader;
-        if ("document".equals(uploadType)) {
-            uploader = new DocumentAdapter();
-        } else {
-            uploader = new ImageAdapter();
+        if (request.getItem() == null || request.getItem().getId() == null) {
+            throw new RuntimeException("Item ID missing");
         }
 
-        try {
-            byte[] fileData = proofFile != null ? proofFile.getBytes() : null;
-            String fileName = proofFile != null ? proofFile.getOriginalFilename() : null;
-
-            Claim claim = claimService.submitClaim(itemId, claimant, proofDescription, fileData, fileName, uploader);
-            return ResponseEntity.ok(claim);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+        if (request.getClaimant() == null || request.getClaimant().getId() == null) {
+            throw new RuntimeException("Claimant ID missing");
         }
+
+        User user = userRepository.findById(request.getClaimant().getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!(user instanceof Claimant)) {
+            throw new RuntimeException("User is not claimant");
+        }
+
+        Claimant claimant = (Claimant) user;
+
+        Claim claim = claimService.submitClaim(
+                request.getItem().getId(),
+                claimant,
+                request.getProofDescription(),
+                null,
+                null,
+                new ImageAdapter()
+        );
+
+        claim.setProofImage(request.getProofImage());
+
+        return ResponseEntity.ok(claimService.saveClaim(claim));
     }
 
     @GetMapping("/pending")
@@ -57,13 +66,19 @@ public class ClaimController {
     }
 
     @PostMapping("/{claimId}/review")
-    public ResponseEntity<Claim> reviewClaim(@PathVariable Long claimId,
+    public ResponseEntity<Claim> reviewClaim(
+            @PathVariable Long claimId,
             @RequestParam Long moderatorId,
             @RequestParam ClaimStatus status,
-            @RequestParam String reviewNotes) {
-        // In a real app, you'd fetch the moderator from the repository
-        Moderator moderator = new Moderator("Moderator Name", "moderator@example.com");
-        moderator.setId(moderatorId);
+            @RequestParam String reviewNotes
+    ) {
+        User user = userRepository.findById(moderatorId).orElse(null);
+
+        if (!(user instanceof Moderator)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Moderator moderator = (Moderator) user;
 
         Claim claim = claimService.reviewClaim(claimId, moderator, status, reviewNotes);
         return ResponseEntity.ok(claim);
@@ -73,5 +88,34 @@ public class ClaimController {
     public ResponseEntity<List<Claim>> getClaimsByItem(@PathVariable Long itemId) {
         List<Claim> claims = claimService.getClaimsByItem(itemId);
         return ResponseEntity.ok(claims);
+    }
+
+    @PutMapping("/{claimId}")
+    public ResponseEntity<Claim> updateClaim(
+            @PathVariable Long claimId,
+            @RequestParam String proofDescription
+    ) {
+        return claimService.getClaimById(claimId)
+                .map(claim -> {
+                    claim.setProofDescription(proofDescription);
+                    Claim savedClaim = claimService.saveClaim(claim);
+                    return ResponseEntity.ok(savedClaim);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{claimId}")
+    public ResponseEntity<Void> deleteClaim(@PathVariable Long claimId) {
+        if (claimService.getClaimById(claimId).isPresent()) {
+            claimService.deleteClaim(claimId);
+            return ResponseEntity.ok().build();
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/all")
+    @CrossOrigin(origins = "*")
+    public ResponseEntity<List<Claim>> getAllClaims() {
+        return ResponseEntity.ok(claimService.getAllClaims());
     }
 }

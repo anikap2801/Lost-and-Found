@@ -82,4 +82,20 @@ public class ClaimService {
     public List<Claim> getClaimsByItem(Long itemId) {
         return claimRepository.findByItemId(itemId);
     }
+
+    public Optional<Claim> getClaimById(Long id) {
+        return claimRepository.findById(id);
+    }
+
+    public Claim saveClaim(Claim claim) {
+        return claimRepository.save(claim);
+    }
+
+    public void deleteClaim(Long id) {
+        claimRepository.deleteById(id);
+    }
+
+    public List<Claim> getAllClaims() {
+    return claimRepository.findAll();
+}
 }

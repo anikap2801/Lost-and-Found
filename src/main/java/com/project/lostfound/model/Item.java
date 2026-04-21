@@ -31,6 +31,9 @@ public class Item {
     @Column(nullable = false)
     private LocalDateTime reportedAt;
 
+    @Column(columnDefinition = "TEXT")
+    private String image;
+
     // Constructors
     public Item() {
     }
@@ -100,4 +103,7 @@ public class Item {
     public void setReportedAt(LocalDateTime reportedAt) {
         this.reportedAt = reportedAt;
     }
+
+    public String getImage() { return image; }
+    public void setImage(String image) { this.image = image; }
 }

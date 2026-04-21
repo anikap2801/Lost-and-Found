@@ -9,35 +9,94 @@ const apiClient = axios.create({
   },
 });
 
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+
 // Items API
 export const itemsAPI = {
-  getAll: () => apiClient.get('/items'),
+  getAll: () => apiClient.get('/items/available'),
+
   getById: (id) => apiClient.get(`/items/${id}`),
-  create: (data) => apiClient.post('/items', data),
-  update: (id, data) => apiClient.put(`/items/${id}`, data),
+
+  // FIXED: correct endpoint + params
+  create: (data) =>
+    apiClient.post(`/items/report`, data),
+
+  update: (id, data) =>
+    apiClient.put(`/items/${id}`, null, {
+      params: {
+        name: data.name,
+        description: data.description,
+        location: data.location,
+      },
+    }),
+
   delete: (id) => apiClient.delete(`/items/${id}`),
-  search: (query) => apiClient.get(`/items/search`, { params: { q: query } }),
+
+  search: (query) =>
+    apiClient.get(`/items/search`, { params: { query } }),
 };
 
 // Claims API
 export const claimsAPI = {
-  getAll: () => apiClient.get('/claims'),
-  getById: (id) => apiClient.get(`/claims/${id}`),
-  create: (data) => apiClient.post('/claims', data),
-  update: (id, data) => apiClient.put(`/claims/${id}`, data),
+  getAll: () => apiClient.get('/claims/all'),
+
+  create: (data) =>
+  apiClient.post('/claims/submit', data),
+
+  update: (id, data) =>
+    apiClient.put(`/claims/${id}`, null, {
+      params: {
+        proofDescription: data.proofDescription,
+      },
+    }),
+
   delete: (id) => apiClient.delete(`/claims/${id}`),
-  approveClaim: (id) => apiClient.put(`/claims/${id}/approve`),
-  rejectClaim: (id) => apiClient.put(`/claims/${id}/reject`),
+
+  review: (id, status, moderatorId, reviewNotes) =>
+    apiClient.post(`/claims/${id}/review`, null, {
+      params: {
+        moderatorId: moderatorId,
+        status: status,
+        reviewNotes: reviewNotes || '',
+      },
+    }),
+
+  getByItem: (itemId) => apiClient.get(`/claims/item/${itemId}`),
 };
 
 // Users API
 export const usersAPI = {
   getAll: () => apiClient.get('/users'),
+
   getById: (id) => apiClient.get(`/users/${id}`),
-  create: (data) => apiClient.post('/users', data),
-  update: (id, data) => apiClient.put(`/users/${id}`, data),
+
+  create: (data) =>
+    apiClient.post('/users/create', null, {
+      params: {
+        name: data.name,
+        email: data.email,
+        userType: data.userType,
+      },
+    }),
+
+  update: (id, data) =>
+    apiClient.put(`/users/${id}`, null, {
+      params: {
+        name: data.name,
+        email: data.email,
+        userType: data.userType,
+      },
+    }),
+
   delete: (id) => apiClient.delete(`/users/${id}`),
-  getProfile: () => apiClient.get('/users/profile'),
 };
 
 export default apiClient;

@@ -2,12 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Paper,
   Dialog,
   DialogTitle,
@@ -18,61 +12,91 @@ import {
   Alert,
   Chip,
   IconButton,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
+  Typography
 } from '@mui/material';
+
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
-import { itemsAPI } from '../services/api';
+
+import { itemsAPI, usersAPI, claimsAPI } from '../services/api';
 
 const ItemsPage = () => {
   const [items, setItems] = useState([]);
+  const [users, setUsers] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
   const [openDialog, setOpenDialog] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  const [openClaimDialog, setOpenClaimDialog] = useState(false);
+  const [claimItemId, setClaimItemId] = useState(null);
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category: '',
-    status: 'FOUND',
+    location: '',
+    reporterId: '',
+    image: ''
   });
+
+  const [claimData, setClaimData] = useState({
+    proofDescription: '',
+    proofImage: ''
+  });
+
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
 
   useEffect(() => {
     fetchItems();
+    fetchUsers();
   }, []);
 
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const response = await itemsAPI.getAll();
-      setItems(response.data || []);
+      const res = await itemsAPI.getAll();
+      setItems(res.data || []);
       setError(null);
-    } catch (err) {
-      console.error('Error fetching items:', err);
+    } catch {
       setError('Failed to load items');
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const res = await usersAPI.getAll();
+      setUsers(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleOpenDialog = (item = null) => {
     if (item) {
       setEditingId(item.id);
-      setFormData(item);
+      setFormData({
+        name: item.name,
+        description: item.description,
+        location: item.location,
+        reporterId: item.reporter?.id,
+        image: item.image || ''
+      });
     } else {
       setEditingId(null);
-      setFormData({ name: '', description: '', category: '', status: 'FOUND' });
+      setFormData({
+        name: '',
+        description: '',
+        location: '',
+        reporterId: '',
+        image: ''
+      });
     }
     setOpenDialog(true);
-  };
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    setEditingId(null);
   };
 
   const handleSave = async () => {
@@ -80,189 +104,239 @@ const ItemsPage = () => {
       if (editingId) {
         await itemsAPI.update(editingId, formData);
       } else {
-        await itemsAPI.create(formData);
+        await itemsAPI.create({
+          ...formData,
+          reporter: { id: user.id }
+        });
       }
-      await fetchItems();
-      handleCloseDialog();
-      setError(null);
-    } catch (err) {
-      console.error('Error saving item:', err);
+
+      fetchItems();
+      setOpenDialog(false);
+    } catch {
       setError('Failed to save item');
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this item?')) {
-      try {
-        await itemsAPI.delete(id);
-        await fetchItems();
-        setError(null);
-      } catch (err) {
-        console.error('Error deleting item:', err);
-        setError('Failed to delete item');
-      }
+    if (!window.confirm("Delete this item?")) return;
+
+    try {
+      await itemsAPI.delete(id);
+      fetchItems();
+    } catch {
+      setError('Delete failed');
+    }
+  };
+
+  const handleOpenClaimDialog = (itemId) => {
+    setClaimItemId(itemId);
+    setClaimData({
+      proofDescription: '',
+      proofImage: ''
+    });
+    setOpenClaimDialog(true);
+  };
+
+  const handleSubmitClaim = async () => {
+    try {
+      await claimsAPI.create({
+        item: { id: claimItemId },
+        claimant: { id: user.id },
+        proofDescription: claimData.proofDescription,
+        proofImage: claimData.proofImage
+      });
+
+      setOpenClaimDialog(false);
+      fetchItems();
+    } catch {
+      setError("Claim failed");
     }
   };
 
   const getStatusColor = (status) => {
-    const colors = {
-      FOUND: 'success',
-      LOST: 'error',
-      CLAIMED: 'warning',
-    };
-    return colors[status] || 'default';
+    return status === "AVAILABLE" ? "success" : "warning";
   };
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <h2>Items Management</h2>
-        </Box>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog()}
-        >
-          Add Item
-        </Button>
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h5">Items</Typography>
+
+        {user.role === "Reporter" && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenDialog()}
+          >
+            Add Item
+          </Button>
+        )}
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && <Alert severity="error">{error}</Alert>}
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Name</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Description</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Category</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }} align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                    No items found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                items.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    sx={{
-                      '&:hover': { backgroundColor: '#f9f9f9' },
-                      '&:last-child td': { border: 0 },
-                    }}
-                  >
-                    <TableCell>{item.id}</TableCell>
-                    <TableCell sx={{ fontWeight: '500' }}>{item.name}</TableCell>
-                    <TableCell>{item.description}</TableCell>
-                    <TableCell>{item.category}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={item.status}
-                        color={getStatusColor(item.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => handleOpenDialog(item)}
-                        title="Edit"
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDelete(item.id)}
-                        title="Delete"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
+      {loading ? <CircularProgress /> : (
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gap: 3
+        }}>
+          {items.map(item => (
+            <Paper key={item.id} sx={{ p: 2 }}>
+
+              <Box
+                component="img"
+                src={item.image || ""}
+                sx={{
+                  width: '100%',
+                  height: 180,
+                  objectFit: 'cover',
+                  backgroundColor: '#ddd'
+                }}
+              />
+
+              <Typography variant="h6">{item.name}</Typography>
+              <Typography>{item.description}</Typography>
+              <Typography>📍 {item.location}</Typography>
+
+              <Typography variant="caption">
+                👤 {item.reporter?.name}
+              </Typography>
+
+              <Chip label={item.status} color={getStatusColor(item.status)} />
+
+              {user.role === "Claimant" && item.status === "AVAILABLE" && (
+                <Button
+                  variant="contained"
+                  size="small"
+                  sx={{ mt: 1 }}
+                  onClick={() => handleOpenClaimDialog(item.id)}
+                >
+                  Claim
+                </Button>
               )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+
+              {((user.role === "Reporter" && item.reporter?.id === user.id) || user.role === "Moderator") && (
+                <Box>
+                  <IconButton onClick={() => handleOpenDialog(item)}>
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton onClick={() => handleDelete(item.id)}>
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+              )}
+
+            </Paper>
+          ))}
+        </Box>
       )}
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+      {/* ITEM DIALOG */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth>
         <DialogTitle>
-          {editingId ? 'Edit Item' : 'Add New Item'}
+          {editingId ? "Edit Item" : "Add Item"}
         </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
+
+        <DialogContent>
+
           <TextField
             fullWidth
             label="Name"
             value={formData.name}
-            onChange={(e) =>
-              setFormData({ ...formData, name: e.target.value })
-            }
+            onChange={(e)=>setFormData({...formData, name:e.target.value})}
             margin="normal"
-            required
           />
+
           <TextField
             fullWidth
             label="Description"
             value={formData.description}
-            onChange={(e) =>
-              setFormData({ ...formData, description: e.target.value })
-            }
+            onChange={(e)=>setFormData({...formData, description:e.target.value})}
             margin="normal"
-            multiline
-            rows={3}
           />
+
           <TextField
             fullWidth
-            label="Category"
-            value={formData.category}
-            onChange={(e) =>
-              setFormData({ ...formData, category: e.target.value })
-            }
+            label="Location"
+            value={formData.location}
+            onChange={(e)=>setFormData({...formData, location:e.target.value})}
             margin="normal"
           />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={formData.status}
-              onChange={(e) =>
-                setFormData({ ...formData, status: e.target.value })
-              }
-              label="Status"
-            >
-              <MenuItem value="FOUND">Found</MenuItem>
-              <MenuItem value="LOST">Lost</MenuItem>
-              <MenuItem value="CLAIMED">Claimed</MenuItem>
-            </Select>
-          </FormControl>
+
+          {/* IMAGE */}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              const reader = new FileReader();
+
+              reader.onloadend = () => {
+                setFormData({
+                  ...formData,
+                  image: reader.result
+                });
+              };
+
+              if (file) reader.readAsDataURL(file);
+            }}
+            style={{ marginTop: 15 }}
+          />
+
         </DialogContent>
+
         <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button
-            onClick={handleSave}
-            variant="contained"
-            color="primary"
-          >
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button onClick={handleSave} variant="contained">
             Save
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* CLAIM DIALOG */}
+      <Dialog open={openClaimDialog} onClose={() => setOpenClaimDialog(false)} fullWidth>
+        <DialogTitle>Submit Claim</DialogTitle>
+
+        <DialogContent>
+
+          <TextField
+            fullWidth
+            label="Proof Description"
+            value={claimData.proofDescription}
+            onChange={(e)=>setClaimData({...claimData, proofDescription:e.target.value})}
+            margin="normal"
+          />
+
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              const reader = new FileReader();
+
+              reader.onloadend = () => {
+                setClaimData({
+                  ...claimData,
+                  proofImage: reader.result
+                });
+              };
+
+              if (file) reader.readAsDataURL(file);
+            }}
+          />
+
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setOpenClaimDialog(false)}>Cancel</Button>
+          <Button onClick={handleSubmitClaim} variant="contained">
+            Submit
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 };

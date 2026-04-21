@@ -16,6 +16,7 @@ import {
   Divider,
   IconButton,
   Badge,
+  Button,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
@@ -29,6 +30,8 @@ import Dashboard from './pages/Dashboard';
 import ItemsPage from './pages/ItemsPage';
 import ClaimsPage from './pages/ClaimsPage';
 import UsersPage from './pages/UsersPage';
+import Login from './pages/Login';
+import Register from './pages/Register';
 
 const theme = createTheme({
   palette: {
@@ -68,6 +71,15 @@ function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [notifications, setNotifications] = useState(0);
+  const [authPage, setAuthPage] = useState('login');
+  const userData = localStorage.getItem("user");
+  const user = userData ? JSON.parse(userData) : null;
+
+  if (!user) {
+    return authPage === 'login'
+      ? <Login goToRegister={() => setAuthPage('register')} />
+      : <Register goToLogin={() => setAuthPage('login')} />;
+  }
 
   const toggleDrawer = (open) => (event) => {
     if (
@@ -161,6 +173,18 @@ function App() {
             >
               Lost & Found Management System
             </Typography>
+            <Typography sx={{ mr: 2 }}>
+              {user.email} ({user.role})
+            </Typography>
+            <Button
+              color="inherit"
+              onClick={() => {
+                localStorage.clear();
+                window.location.reload();
+              }}
+            >
+              Logout
+            </Button>
             <IconButton color="inherit" sx={{ mr: 1 }}>
               <Badge badgeContent={notifications} color="error">
                 <NotificationsIcon />
@@ -192,7 +216,7 @@ function App() {
           }}
         >
           <Typography variant="body2">
-            © 2024 Lost & Found Application. All rights reserved.
+            © 2026 PESU Lost & Found - CS073 CS078 CS080
           </Typography>
         </Box>
       </Box>

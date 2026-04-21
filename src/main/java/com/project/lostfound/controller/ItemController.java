@@ -22,18 +22,29 @@ public class ItemController {
     private UserRepository userRepository;
 
     @PostMapping("/report")
-    public ResponseEntity<Item> reportItem(@RequestParam String name,
-            @RequestParam String description,
-            @RequestParam String location,
-            @RequestParam Long reporterId) {
-        User user = userRepository.findById(reporterId).orElse(null);
+    public ResponseEntity<Item> reportItem(@RequestBody Item requestItem) {
+
+        User user = userRepository.findById(requestItem.getReporter().getId()).orElse(null);
+
         if (!(user instanceof Reporter)) {
             return ResponseEntity.badRequest().build();
         }
 
         Reporter reporter = (Reporter) user;
-        Item item = itemService.reportItem(name, description, location, reporter);
-        return ResponseEntity.ok(item);
+
+        Item item = itemService.reportItem(
+                requestItem.getName(),
+                requestItem.getDescription(),
+                requestItem.getLocation(),
+                reporter
+        );
+
+        // 🔥 CRITICAL LINE
+        item.setImage(requestItem.getImage());
+
+        Item savedItem = itemService.saveItem(item);
+
+        return ResponseEntity.ok(savedItem);
     }
 
     @GetMapping("/available")
@@ -53,5 +64,30 @@ public class ItemController {
         return itemService.getItemById(id)
                 .map(item -> ResponseEntity.ok(item))
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Item> updateItem(@PathVariable Long id,
+            @RequestParam String name,
+            @RequestParam String description,
+            @RequestParam String location) {
+        return itemService.getItemById(id)
+                .map(item -> {
+                    item.setName(name);
+                    item.setDescription(description);
+                    item.setLocation(location);
+                    Item savedItem = itemService.saveItem(item);
+                    return ResponseEntity.ok(savedItem);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteItem(@PathVariable Long id) {
+        if (itemService.getItemById(id).isPresent()) {
+            itemService.deleteItem(id);
+            return ResponseEntity.ok().build();
+        }
+        return ResponseEntity.notFound().build();
     }
 }

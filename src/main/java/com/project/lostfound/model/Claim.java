@@ -25,6 +25,9 @@ public class Claim {
     @Column
     private String proofFilePath;
 
+    @Column(columnDefinition = "TEXT")
+    private String proofImage;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ClaimStatus status;
@@ -134,5 +137,13 @@ public class Claim {
 
     public void setReviewNotes(String reviewNotes) {
         this.reviewNotes = reviewNotes;
+    }
+
+    public String getProofImage() {
+        return proofImage;
+    }
+
+    public void setProofImage(String proofImage) {
+        this.proofImage = proofImage;
     }
 }

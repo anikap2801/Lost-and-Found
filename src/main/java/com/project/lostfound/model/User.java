@@ -1,13 +1,14 @@
 package com.project.lostfound.model;
 
-import com.project.lostfound.model.enums.UserType;
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "users")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
-@DiscriminatorColumn(name = "user_type")
+@DiscriminatorColumn(name = "user_type", discriminatorType = DiscriminatorType.STRING)
 public abstract class User {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -18,13 +19,12 @@ public abstract class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "user_type", insertable = false, updatable = false)
-    private UserType userType;
+    @JsonIgnore
+    @Column(nullable = false)
+    private String password;
 
     // Constructors
-    public User() {
-    }
+    public User() {}
 
     public User(String name, String email) {
         this.name = name;
@@ -56,14 +56,14 @@ public abstract class User {
         this.email = email;
     }
 
-    public UserType getUserType() {
-        return userType;
+    public String getPassword() {
+        return password;
     }
 
-    public void setUserType(UserType userType) {
-        this.userType = userType;
+    public void setPassword(String password) {
+        this.password = password;
     }
 
-    // Abstract method for role-specific behavior
+    //This is now your ONLY role source
     public abstract String getRole();
 }
